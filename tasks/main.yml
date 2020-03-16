@@ -1,5 +1,4 @@
-# roles/aws-elb/tasks/main.yml
-
+# tasks/main.yml
 # Create ELB and dependencies 
 
 - name: Lookup subnet info
