@@ -2,56 +2,6 @@
 
 # Create ELB and dependencies 
 
-- name: Create security group for ELB
-  ec2_group:
-    name: "{{ elb_name }}-sg"
-    description: "Security group for {{ elb_name }}"
-    region: "{{ aws_region }}"
-    vpc_id: "{{ vpc_id }}"
-    rules:
-      - proto: tcp
-        from_port: 80
-        to_port: 80
-        cidr_ip: 0.0.0.0/0
-      - proto: tcp
-        from_port: 443
-        to_port: 443
-        cidr_ip: 0.0.0.0/0
-      - proto: tcp
-        from_port: 22
-        to_port: 22
-        cidr_ip: 0.0.0.0/0
-    rules_egress:
-      - proto: tcp
-        from_port: 80
-        to_port: 80
-        group_name: "{{ elb_target_ec2_name }}-sg"
-      - proto: tcp
-        from_port: 22
-        to_port: 22
-        group_name: "{{ elb_target_ec2_name }}-sg"
-    tags: 
-      Name : "{{ elb_name }}-sg"
-
-- name: Add ELB sg to EC2 sg
-  ec2_group:
-    name: "{{ elb_target_ec2_name }}-sg"
-    description: "Security group for {{ elb_target_ec2_name }}"
-    region: "{{ aws_region }}"
-    vpc_id: "{{ vpc_id }}"
-    purge_rules: False
-    rules:
-      - proto: tcp
-        from_port: 80
-        to_port: 80
-        group_name: "{{ elb_name }}-sg"
-      - proto: tcp
-        from_port: 22
-        to_port: 22
-        group_name: "{{ elb_name }}-sg"
-    tags: 
-      Name : "{{ elb_target_ec2_name }}-sg" 
-
 - name: Lookup subnet info
   ec2_vpc_subnet_info:
     filters:
@@ -68,7 +18,7 @@
 - name: Lookup security group info
   ec2_group_info:
     filters:
-      group-name: "{{ elb_name }}-sg"
+      group-name: "{{ elb_sg_name }}"
   register: sg_info  
 
 - name: 
@@ -78,24 +28,8 @@
     subnets: "{{ subnet_info.results | sum(attribute='subnets', start=[]) | map(attribute='id') | list }}" 
     instance_ids: "{{ ec2_info|json_query('instances[*].instance_id') }}"
     security_group_ids: "{{ sg_info|json_query('security_groups[*].group_id') }}"
-    listeners:
-      - protocol: http
-        load_balancer_port: 80
-        instance_port: 80
-      - protocol: https
-        load_balancer_port: 443
-        instance_port: 443
-        ssl_certificate_id: "{{ elb_cert_arn }}"
-      - protocol: tcp
-        load_balancer_port: 22
-        instance_port: 22
-    health_check:
-        ping_protocol: tcp # options are http, https, ssl, tcp
-        ping_port: 22
-        response_timeout: 5 # seconds
-        interval: 30 # seconds
-        unhealthy_threshold: 2
-        healthy_threshold: 10
+    listeners: "{{ elb_listeners }}"
+    health_check: "{{ elb_health_check }}
   register: elb_info
 
 - debug: 
